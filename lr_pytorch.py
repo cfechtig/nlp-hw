@@ -12,9 +12,11 @@ import json
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
+from sklearn.feature_extraction.text import CountVectorizer
+
 import argparse
 
-from sgd import Example
+from sgd import Example, kBIAS
 
 torch.manual_seed(1701)
 
@@ -40,10 +42,32 @@ class GuessDataset(Dataset):
         # Complete this function to actually populate the feature and label members of the class with non-zero data.
 
         # You may want to use numpy's fromiter function
+        assert vocab[0] == kBIAS, \
+            "First vocab word must be bias term (was %s)" % vocab[0]
+
+        dataset = []
+        with open(filename) as infile:
+            for line in infile:
+                ex = Example(json.loads(line), vocab, use_bias=False)
+                dataset.append(ex)
+
+        # Shuffle the data so that we don't have order effects
+        random.shuffle(dataset)
+
+        self.num_samples = 0
+        features = []
+        labels = []
         
+        for ex in dataset:
+            self.num_samples += 1
+            features.append(ex.x)
+            labels.append([ex.y])
+
+        self.feature = torch.from_numpy(np.array(features)).float()
+        self.label = torch.from_numpy(np.array(labels)).float()
 
         assert self.num_samples == len(self.feature)
-        None         
+        None
 
 class SimpleLogreg(nn.Module):
     def __init__(self, num_features):
@@ -53,8 +77,7 @@ class SimpleLogreg(nn.Module):
         :param num_features: The number of features in the linear model
         """
         super(SimpleLogreg, self).__init__()
-        # Replace this with a real nn.Module
-        self.linear = None
+        self.linear = torch.nn.Linear(num_features, 1)
 
     def forward(self, x):
         """
@@ -62,13 +85,13 @@ class SimpleLogreg(nn.Module):
 
         :param x: Example to evaluate
         """
-        return 0.5
+        out = torch.sigmoid(self.linear(x))
+        return out
 
     def evaluate(self, data):
         """
         Computes the accuracy of the model. 
         """
-
         # No need to modify this function.
         with torch.no_grad():
             y_predicted = self(data.feature)
@@ -92,6 +115,14 @@ def step(epoch, ex, model, optimizer, criterion, inputs, labels):
     :param inputs: The current set of inputs
     :param labels: The labels for those inputs
     """
+    inputs = inputs.float()
+    labels = labels.float()
+
+    optimizer.zero_grad()
+    prediction = model(inputs)
+    loss = criterion(prediction, labels)
+    loss.backward()
+    optimizer.step()
 
     if (ex+1) % 20 == 0:
       acc_train = model.evaluate(train)
@@ -135,8 +166,8 @@ if __name__ == "__main__":
     total_samples = len(train)
 
     # Replace these with the correct loss and optimizer
-    criterion = None
-    optimizer = None
+    criterion = torch.nn.BCELoss()
+    optimizer = torch.optim.SGD(logreg.parameters(), lr=args.learnrate)
     
     train_loader = DataLoader(dataset=train,
                               batch_size=batch,
@@ -149,4 +180,3 @@ if __name__ == "__main__":
       for ex, (inputs, labels) in enumerate(train_loader):
         # Run your training process
         step(epoch, ex, logreg, optimizer, criterion, inputs, labels)
-
