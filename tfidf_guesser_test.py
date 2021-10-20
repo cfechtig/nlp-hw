@@ -33,6 +33,7 @@ class TestGuesser(unittest.TestCase):
         guess = self.guesser.guess(["Who is buried in the Mausoleum at Halicarnassus?"], max_n_guesses=1)
         self.assertEqual(guess[0][0][0],  "Mausolus")
 
+
     def testSimilar(self):
         guess = self.guesser.guess(["tomb"], max_n_guesses=self.num_duplicates + 1)
         for ii in range(self.num_duplicates):

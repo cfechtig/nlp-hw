@@ -32,6 +32,7 @@ class TfidfGuesser:
         
         self.tfidf_vectorizer = None
         self.tfidf_matrix = None
+        self.i_to_ans = None #sol
 
     def train(self, training_data: Union[StubDatabase, QantaDatabase], limit=-1) -> None:
         """
@@ -51,6 +52,11 @@ class TfidfGuesser:
             answers = answers[:limit]
 
         # Your code here
+        self.i_to_ans = {i: ans for i, ans in enumerate(answers)} #sol
+        self.tfidf_vectorizer = TfidfVectorizer( #sol
+            ngram_range=(1, 3), min_df=2, max_df=.9 #sol
+        ).fit(questions) #sol
+        self.tfidf_matrix = self.tfidf_vectorizer.transform(questions) #sol
 
     def guess(self, questions: List[str], max_n_guesses: Optional[int]) -> List[List[Tuple[str, float]]]:
         """
@@ -62,6 +68,13 @@ class TfidfGuesser:
         """
 
         guesses = []
+        representations = self.tfidf_vectorizer.transform(questions)  #sol
+        guess_matrix = self.tfidf_matrix.dot(representations.T).T     #sol
+        guess_indices = (-guess_matrix).toarray().argsort(axis=1)[:, 0:max_n_guesses]   #sol
+        guesses = []   #sol
+        for i in range(len(questions)):   #sol
+            idxs = guess_indices[i]   #sol
+            guesses.append([(self.i_to_ans[j], guess_matrix[i, j]) for j in idxs])   #sol
 
         return guesses
 
@@ -89,17 +102,43 @@ class TfidfGuesser:
             answers = answers[:limit]
         
         d = defaultdict(dict)
+        data_index = 0 #sol
+        guesses = [x[0][0] for x in self.guess(questions, max_n_guesses=1)] #sol
+        for gg, yy in zip(guesses, answers): #sol
+            d[yy][gg] = d[yy].get(gg, 0) + 1 #sol
+            data_index += 1 #sol
+            if data_index % 100 == 0: #sol
+                print("%i/%i for confusion matrix" % (data_index, #sol
+                                                      len(guesses))) #sol
         return d
     
+    def save(self): #sol
+        with open(MODEL_PATH, 'wb') as f: #sol
+            pickle.dump({ #sol
+                'i_to_ans': self.i_to_ans, #sol
+                'tfidf_vectorizer': self.tfidf_vectorizer, #sol
+                'tfidf_matrix': self.tfidf_matrix #sol
+            }, f) #sol
 
+    @classmethod #sol
+    def load(self): #sol
+        """
+        Load the guesser from a saved file
+        """
         
+        with open(MODEL_PATH, 'rb') as f: #sol
+            params = pickle.load(f) #sol
+            guesser = TfidfGuesser() #sol
+            guesser.tfidf_vectorizer = params['tfidf_vectorizer'] #sol
+            guesser.tfidf_matrix = params['tfidf_matrix'] #sol
+            guesser.i_to_ans = params['i_to_ans'] #sol
+            return guesser #sol
 
 # You won't need this for this homework, but it will generate the data for a
 # future homework; included for reference.
 def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["id", "label"]):
     """
     Returns the vocab, which is a list of all features.
-
     """
 
     vocab = [kBIAS]
@@ -158,6 +197,7 @@ if __name__ == "__main__":
     
     tfidf_guesser = TfidfGuesser()
     tfidf_guesser.train(guesstrain, limit=flags.limit)
+    tfidf_guesser.save() #sol
 
     confusion = tfidf_guesser.confusion_matrix(guessdev, limit=-1)
     print("Errors:\n=================================================")

@@ -36,7 +36,8 @@ class Example:
         """
         Create a new example
 
-        json_line -- The json object that contains the label ("label") and features as fields
+        label -- The label (0 / 1) of the example
+        words -- The words in a list of "word:count" format
         vocab -- The vocabulary to use as features (list)
         use_bias -- Include a bias feature (should be false with Pytorch)
         """

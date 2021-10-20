@@ -38,10 +38,20 @@ class GuessDataset(Dataset):
 
     def initialize(self, filename):
         # Complete this function to actually populate the feature and label members of the class with non-zero data.
+        dataset = []                                                    #sol
+        with open(filename) as infile:                                  #sol
+            for line in infile:                                         #sol
+                ex = Example(json.loads(line), vocab, use_bias=False)   #sol
+                dataset.append(ex)                                      #sol
 
         # You may want to use numpy's fromiter function
         
+        features = np.stack(list(ex.x for ex in dataset))               #sol
+        label = np.stack(list(np.array([ex.y]) for ex in dataset))      #sol
 
+        self.feature = torch.from_numpy(features.astype(np.float32))    #sol
+        self.label = torch.from_numpy(label.astype(np.float32))         #sol
+        self.num_samples = len(self.label)                              #sol
         assert self.num_samples == len(self.feature)
         None         
 
@@ -53,8 +63,7 @@ class SimpleLogreg(nn.Module):
         :param num_features: The number of features in the linear model
         """
         super(SimpleLogreg, self).__init__()
-        # Replace this with a real nn.Module
-        self.linear = None
+        self.linear = nn.Linear(num_features, 1)                        #sol
 
     def forward(self, x):
         """
@@ -62,7 +71,8 @@ class SimpleLogreg(nn.Module):
 
         :param x: Example to evaluate
         """
-        return 0.5
+        y_pred = torch.sigmoid(self.linear(x))                          #sol Label has only two categories, so sigmoid and softmax should be essentially the same.
+        return y_pred                                                   #sol
 
     def evaluate(self, data):
         """
@@ -92,7 +102,12 @@ def step(epoch, ex, model, optimizer, criterion, inputs, labels):
     :param inputs: The current set of inputs
     :param labels: The labels for those inputs
     """
+    y_pred = model(inputs)                              #sol
+    loss = criterion(y_pred, labels)                    #sol
+    loss.backward()                                     #sol
+    optimizer.step()                                    #sol
 
+    optimizer.zero_grad()                               #sol
     if (ex+1) % 20 == 0:
       acc_train = model.evaluate(train)
       acc_test = model.evaluate(test)
@@ -135,8 +150,8 @@ if __name__ == "__main__":
     total_samples = len(train)
 
     # Replace these with the correct loss and optimizer
-    criterion = None
-    optimizer = None
+    criterion = nn.BCELoss()
+    optimizer = torch.optim.SGD(logreg.parameters(), lr=args.learnrate)
     
     train_loader = DataLoader(dataset=train,
                               batch_size=batch,
@@ -149,4 +164,3 @@ if __name__ == "__main__":
       for ex, (inputs, labels) in enumerate(train_loader):
         # Run your training process
         step(epoch, ex, logreg, optimizer, criterion, inputs, labels)
-
