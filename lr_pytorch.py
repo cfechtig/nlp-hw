@@ -12,11 +12,9 @@ import json
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
-from sklearn.feature_extraction.text import CountVectorizer
-
 import argparse
 
-from sgd import Example, kBIAS
+from sgd import Example
 
 torch.manual_seed(1701)
 
@@ -47,21 +45,6 @@ class GuessDataset(Dataset):
                 dataset.append(ex)                                      #sol
 
         # You may want to use numpy's fromiter function
-        assert vocab[0] == kBIAS, \
-            "First vocab word must be bias term (was %s)" % vocab[0]
-
-        dataset = []
-        with open(filename) as infile:
-            for line in infile:
-                ex = Example(json.loads(line), vocab, use_bias=False)
-                dataset.append(ex)
-
-        # Shuffle the data so that we don't have order effects
-        random.shuffle(dataset)
-
-        self.num_samples = 0
-        features = []
-        labels = []
         
         features = np.stack(list(ex.x for ex in dataset))               #sol
         label = np.stack(list(np.array([ex.y]) for ex in dataset))      #sol
@@ -118,12 +101,12 @@ def step(epoch, ex, model, optimizer, criterion, inputs, labels):
     :param inputs: The current set of inputs
     :param labels: The labels for those inputs
     """
-    y_pred = model(inputs)                              #sol
-    loss = criterion(y_pred, labels)                    #sol
-    loss.backward()                                     #sol
-    optimizer.step()                                    #sol
+    y_pred = model(inputs)                                  #sol
+    loss = criterion(y_pred, labels)                        #sol
+    loss.backward()                                         #sol
+    optimizer.step()                                        #sol
 
-    optimizer.zero_grad()                               #sol
+    optimizer.zero_grad()                                   #sol
     if (ex+1) % 20 == 0:
       acc_train = model.evaluate(train)
       acc_test = model.evaluate(test)

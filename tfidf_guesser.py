@@ -8,9 +8,6 @@ from os import path
 from typing import Union, Dict
 
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics.pairwise import linear_kernel
-import numpy as np
 
 from qanta_util.qbdata import QantaDatabase
 from tfidf_guesser_test import StubDatabase
@@ -63,7 +60,7 @@ class TfidfGuesser:
 
     def guess(self, questions: List[str], max_n_guesses: Optional[int]) -> List[List[Tuple[str, float]]]:
         """
-        Given the text of questions, generate guesses (a list of both the page id and score) for each one.
+        Given the text of questions, generate guesses (a list of both both the page id and score) for each one.
 
         Keyword arguments:
         questions -- Raw text of questions in a list
@@ -78,17 +75,6 @@ class TfidfGuesser:
         for i in range(len(questions)):   #sol
             idxs = guess_indices[i]   #sol
             guesses.append([(self.i_to_ans[j], guess_matrix[i, j]) for j in idxs])   #sol
-
-        tfidf_test_matrix = self.tfidf_vectorizer.transform(questions)
-        cos_sim_matrix = linear_kernel(tfidf_test_matrix, self.tfidf_matrix)
-
-        rev_sorted_sims = [elem[::-1] for elem in np.sort(cos_sim_matrix, axis=1)]
-        rev_sorted_args = [elem[::-1] for elem in np.argsort(cos_sim_matrix, axis=1)]
-
-        for x in range(len(rev_sorted_sims)):
-            guesses.append([])
-            for y in range(min(max_n_guesses, len(rev_sorted_sims[0]))):
-                guesses[x].append((self.answers[rev_sorted_args[x][y]], rev_sorted_sims[x][y]))
 
         return guesses
 
