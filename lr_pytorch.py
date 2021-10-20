@@ -12,9 +12,11 @@ import json
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
+from sklearn.feature_extraction.text import CountVectorizer
+
 import argparse
 
-from sgd import Example
+from sgd import Example, kBIAS
 
 torch.manual_seed(1701)
 
@@ -45,6 +47,21 @@ class GuessDataset(Dataset):
                 dataset.append(ex)                                      #sol
 
         # You may want to use numpy's fromiter function
+        assert vocab[0] == kBIAS, \
+            "First vocab word must be bias term (was %s)" % vocab[0]
+
+        dataset = []
+        with open(filename) as infile:
+            for line in infile:
+                ex = Example(json.loads(line), vocab, use_bias=False)
+                dataset.append(ex)
+
+        # Shuffle the data so that we don't have order effects
+        random.shuffle(dataset)
+
+        self.num_samples = 0
+        features = []
+        labels = []
         
         features = np.stack(list(ex.x for ex in dataset))               #sol
         label = np.stack(list(np.array([ex.y]) for ex in dataset))      #sol
@@ -53,7 +70,7 @@ class GuessDataset(Dataset):
         self.label = torch.from_numpy(label.astype(np.float32))         #sol
         self.num_samples = len(self.label)                              #sol
         assert self.num_samples == len(self.feature)
-        None         
+        None
 
 class SimpleLogreg(nn.Module):
     def __init__(self, num_features):
@@ -78,7 +95,6 @@ class SimpleLogreg(nn.Module):
         """
         Computes the accuracy of the model. 
         """
-
         # No need to modify this function.
         with torch.no_grad():
             y_predicted = self(data.feature)
