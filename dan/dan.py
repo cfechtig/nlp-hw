@@ -116,14 +116,12 @@ class QuestionDataset(Dataset):
         #### You should consider the out of vocab(OOV) cases
         #### question_text is already tokenized    
         ####Your code here
-
-
+        
 
         return vec_text
 
     
 ###You don't need to change this funtion
-
 def batchify(batch):
     """
     Gather a batch of individual examples into one batch, 
@@ -202,7 +200,11 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
         labels = batch['labels']
 
         #### Your code here
-        
+        model.zero_grad()
+        out = model(question_text)
+        loss = criterion(out, labels)
+        loss.backward()
+        optimizer.step()
 
         clip_grad_norm_(model.parameters(), args.grad_clipping) 
         print_loss_total += loss.data.numpy()
@@ -220,8 +222,6 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
     return accuracy
 
 
-
-
 class DanModel(nn.Module):
     """High level model that handles intializing the underlying network
     architecture, saving, updating examples, and predicting examples.
@@ -230,9 +230,7 @@ class DanModel(nn.Module):
     #### You don't need to change the parameters for the model for passing tests, might need to tinker to improve performance/handle
     #### pretrained word embeddings/for your project code.
 
-
-    def __init__(self, n_classes, vocab_size, emb_dim=50,
-                 n_hidden_units=50, nn_dropout=.5):
+    def __init__(self, n_classes, vocab_size, emb_dim=50, n_hidden_units=50, nn_dropout=.5):
         super(DanModel, self).__init__()
         self.n_classes = n_classes
         self.vocab_size = vocab_size
@@ -253,8 +251,8 @@ class DanModel(nn.Module):
         # For test cases, the network we consider is - linear1 -> ReLU() -> Dropout(0.5) -> linear2
 
         #### Your code here
-        
-        
+        self.classifier = nn.Sequential(self.linear1, nn.ReLU(), nn.Dropout(nn_dropout), self.linear2)
+        self._softmax = nn.Softmax()
        
     def forward(self, input_text, text_len, is_prob=False):
         """
@@ -266,20 +264,18 @@ class DanModel(nn.Module):
         is_prob: if True, output the softmax of last layer
         """
 
-        logits = torch.LongTensor([0.0] * self.n_classes)
-
         # Complete the forward funtion.  First look up the word embeddings.
-        
+        text_embed = self._word_embeddings(input_text)
         # Then average them 
-        
+        encoded = text_embed.sum(1)
+        encoded /= text_len.view(text_embed.size(0), -1)
         # Before feeding them through the network
-        
+        logits = self.classifier(encoded)
 
         if is_prob:
             logits = self._softmax(logits)
 
         return logits
-
 
 
 # You basically do not need to modify the below code 
