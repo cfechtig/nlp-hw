@@ -191,7 +191,7 @@ def disambig_feature(page, question):
 
 # You won't need this for this homework, but it will generate the data for a
 # future homework; included for reference.
-def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["id", "label"]):
+def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["id", "label"], num_guesses=5):
     """
     Returns the vocab, which is a list of all features.
     """

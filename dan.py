@@ -116,7 +116,6 @@ class QuestionDataset(Dataset):
         #### You should consider the out of vocab(OOV) cases
         #### question_text is already tokenized    
         ####Your code here
-        
 
         return vec_text
 
@@ -164,6 +163,7 @@ def evaluate(data_loader, model, device):
         labels = batch['labels']
 
         ####Your code here
+
 
         top_n, top_i = logits.topk(1)
         num_examples += question_text.size(0)
@@ -227,8 +227,7 @@ class DanModel(nn.Module):
     architecture, saving, updating examples, and predicting examples.
     """
 
-    #### You don't need to change the parameters for the model for passing tests, might need to tinker to improve performance/handle
-    #### pretrained word embeddings/for your project code.
+    #### You don't need to change the parameters for the model
 
     def __init__(self, n_classes, vocab_size, emb_dim=50, n_hidden_units=50, nn_dropout=.5):
         super(DanModel, self).__init__()
@@ -254,6 +253,25 @@ class DanModel(nn.Module):
         self.classifier = nn.Sequential(self.linear1, nn.ReLU(), nn.Dropout(nn_dropout), self.linear2)
         self._softmax = nn.Softmax()
        
+
+
+    def average(self, text_embeddings, text_len):
+        """
+        Given a batch of text embeddings and a tensor of the corresponding lengths, compute the average of them.
+
+        text_embeddings: embeddings of the words
+        text_len: the corresponding number of words
+        """
+
+        average = torch.zeros(text_embeddings.size()[0], text_embeddings.size()[-1])
+
+        # You'll want to finish this function.  You don't have to use it in
+        # your forward function, but it's a good way to make sure the
+        # dimensions match and to use the unit test to check your work.
+
+        return average
+
+        
     def forward(self, input_text, text_len, is_prob=False):
         """
         Model forward pass, returns the logits of the predictions.
@@ -263,14 +281,15 @@ class DanModel(nn.Module):
         text_len : batch * 1, text length for each question
         is_prob: if True, output the softmax of last layer
         """
+        
+        logits = torch.LongTensor([0.0] * self.n_classes)
 
         # Complete the forward funtion.  First look up the word embeddings.
         text_embed = self._word_embeddings(input_text)
         # Then average them 
-        encoded = text_embed.sum(1)
-        encoded /= text_len.view(text_embed.size(0), -1)
+        text_embed = self.average(text_embed, text_len)
         # Before feeding them through the network
-        logits = self.classifier(encoded)
+        logits = self.classifier(text_embed)
 
         if is_prob:
             logits = self._softmax(logits)
@@ -284,9 +303,9 @@ class DanModel(nn.Module):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Question Type')
     parser.add_argument('--no-cuda', action='store_true', default=True)
-    parser.add_argument('--train-file', type=str, default='../qanta.train.json')
-    parser.add_argument('--dev-file', type=str, default='../qanta.dev.json')
-    parser.add_argument('--test-file', type=str, default='../qanta.test.json')
+    parser.add_argument('--train-file', type=str, default='data/qanta.train.json')
+    parser.add_argument('--dev-file', type=str, default='data/qanta.dev.json')
+    parser.add_argument('--test-file', type=str, default='data/qanta.test.json')
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-epochs', type=int, default=20)
     parser.add_argument('--grad-clipping', type=int, default=5)
@@ -301,6 +320,7 @@ if __name__ == "__main__":
     #### check if using gpu is available
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if args.cuda else "cpu")
+    print("Device=", device)
 
     ### Load data
     train_exs = load_data(args.train_file, args.limit)

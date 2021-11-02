@@ -187,7 +187,7 @@ if __name__ == "__main__":
                            type=str, default='../',
                            required=False)
     argparser.add_argument("--train_dataset", help="QB Dataset for training",
-                           type=str, default='qanta.train.json',
+                           type=str, default='data/qanta.train.json',
                            required=False)
     argparser.add_argument("--example", help="What answer we use for testing",
                            type=str, default='Neptune',
