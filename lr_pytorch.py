@@ -23,7 +23,7 @@ class GuessDataset(Dataset):
         self.vocab = vocab
         
         # Just create some dummy data so unit tests will fail rather than cause error
-        self.num_features = len(vocab)
+        self.num_features = len(self.vocab)
         self.feature = zeros((5, self.num_features))
         self.label = zeros((5, 1))
         self.num_samples = 5
@@ -38,20 +38,20 @@ class GuessDataset(Dataset):
 
     def initialize(self, filename):
         # Complete this function to actually populate the feature and label members of the class with non-zero data.
-        dataset = []                                                    #sol
-        with open(filename) as infile:                                  #sol
-            for line in infile:                                         #sol
-                ex = Example(json.loads(line), vocab, use_bias=False)   #sol
-                dataset.append(ex)                                      #sol
+        dataset = []                                                        #sol
+        with open(filename) as infile:                                      #sol
+            for line in infile:                                             #sol
+                ex = Example(json.loads(line), self.vocab, use_bias=False)  #sol
+                dataset.append(ex)                                          #sol
 
         # You may want to use numpy's fromiter function
         
-        features = np.stack(list(ex.x for ex in dataset))               #sol
-        label = np.stack(list(np.array([ex.y]) for ex in dataset))      #sol
+        features = np.stack(list(ex.x for ex in dataset))                   #sol
+        label = np.stack(list(np.array([ex.y]) for ex in dataset))          #sol
 
-        self.feature = torch.from_numpy(features.astype(np.float32))    #sol
-        self.label = torch.from_numpy(label.astype(np.float32))         #sol
-        self.num_samples = len(self.label)                              #sol
+        self.feature = torch.from_numpy(features.astype(np.float32))        #sol
+        self.label = torch.from_numpy(label.astype(np.float32))             #sol
+        self.num_samples = len(self.label)                                  #sol
         assert self.num_samples == len(self.feature)
         None
 
@@ -63,7 +63,7 @@ class SimpleLogreg(nn.Module):
         :param num_features: The number of features in the linear model
         """
         super(SimpleLogreg, self).__init__()
-        self.linear = nn.Linear(num_features, 1)                        #sol
+        self.linear = nn.Linear(num_features, 1)        #sol
 
     def forward(self, x):
         """
@@ -71,8 +71,8 @@ class SimpleLogreg(nn.Module):
 
         :param x: Example to evaluate
         """
-        y_pred = torch.sigmoid(self.linear(x))                          #sol Label has only two categories, so sigmoid and softmax should be essentially the same.
-        return y_pred                                                   #sol
+        y_pred = torch.sigmoid(self.linear(x))          #sol Label has only two categories, so sigmoid and softmax should be essentially the same.
+        return y_pred                                   #sol
 
     def evaluate(self, data):
         """
@@ -116,11 +116,11 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     #''' Switch between the toy and REAL EXAMPLES
     argparser.add_argument("--buzztrain", help="Positive class",
-                           type=str, default="data/small_guess.buzztrain.jsonl")
+                           type=str, default="small_guess.buzztrain.jsonl")
     argparser.add_argument("--buzzdev", help="Negative class",
-                           type=str, default="data/small_guess.buzzdev.jsonl")
+                           type=str, default="small_guess.buzztest.jsonl")
     argparser.add_argument("--vocab", help="Vocabulary that can be features",
-                           type=str, default="data/small_guess.vocab")
+                           type=str, default="small_guess.vocab")
     argparser.add_argument("--passes", help="Number of passes through train",
                            type=int, default=5)
     argparser.add_argument("--batch", help="Number of items in each batch",
@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     with open(args.vocab, 'r') as infile:
         vocab = [x.strip() for x in infile]    
-    
+
     train = GuessDataset(vocab)
     test = GuessDataset(vocab)
 
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # Replace these with the correct loss and optimizer
     criterion = nn.BCELoss()
     optimizer = torch.optim.SGD(logreg.parameters(), lr=args.learnrate)
-    
+
     train_loader = DataLoader(dataset=train,
                               batch_size=batch,
                               shuffle=True,
@@ -160,6 +160,11 @@ if __name__ == "__main__":
 
     # Iterations
     for epoch in range(num_epochs):
-      for ex, (inputs, labels) in enumerate(train_loader):
-        # Run your training process
-        step(epoch, ex, logreg, optimizer, criterion, inputs, labels)
+        for ex, (inputs, labels) in enumerate(train_loader):
+            # Run your training process
+            step(epoch, ex, logreg, optimizer, criterion, inputs, labels)
+
+    print(logreg)
+    acc = logreg.evaluate(test)
+    print("Accuracy: %f" % acc)
+    torch.save(logreg.state_dict(), "trained_model.th")

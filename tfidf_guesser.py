@@ -4,6 +4,7 @@ import pickle
 import json
 import argparse
 from os import path
+from math import log
 
 from typing import Union, Dict
 
@@ -13,6 +14,8 @@ from qanta_util.qbdata import QantaDatabase
 from tfidf_guesser_test import StubDatabase
 
 from sgd import kBIAS
+
+import requests
 
 MODEL_PATH = 'tfidf.pickle'
 BUZZ_NUM_GUESSES = 10
@@ -133,6 +136,59 @@ class TfidfGuesser:
             guesser.i_to_ans = params['i_to_ans'] #sol
             return guesser #sol
 
+def get_links(page):
+    session = requests.Session()
+
+    url = "https://en.wikipedia.org/w/api.php"
+
+    params = {
+        "action": "query",
+        "format": "json",
+        "titles": page,
+        "prop": "links",
+        "pllimit": "max",
+        "plnamespace": "0"
+    }
+
+    r = session.get(url=url, params=params)
+    data = r.json()
+    pages = data["query"]["pages"]
+
+    page_titles = []
+
+    for key, val in pages.items():
+        for link in val["links"]:
+            page_titles.append(link["title"])
+
+    while "continue" in data:
+        plcontinue = data["continue"]["plcontinue"]
+        params["plcontinue"] = plcontinue
+
+        try:
+            response = session.get(url=url, params=params)      # try/catch
+            data = response.json()
+            pages = data["query"]["pages"]
+
+            for key, val in pages.items():
+                for link in val["links"]:
+                    page_titles.append(link["title"])
+        except ConnectionResetError as e:
+            print(e)
+
+    return page_titles
+
+def links_feature(page, question):
+    page_titles = get_links(page)
+    lf = 0
+    for t in page_titles:
+        lf += t in question
+    return lf, len(page_titles)
+
+def disambig_feature(page, question):
+    if '(' in page and ')' in page:
+        return page[page.find("(")+1:page.find(")")] in question
+    return False
+
 # You won't need this for this homework, but it will generate the data for a
 # future homework; included for reference.
 def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["id", "label"]):
@@ -141,7 +197,7 @@ def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["
     """
 
     vocab = [kBIAS]
-    
+
     print("Writing guesses to %s" % filename)
     num = 0
     with open(filename, 'w') as outfile:
@@ -152,18 +208,28 @@ def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["
                 print('.', end='', flush=True)
             
             runs = qq.runs(run_length)
-            guesses = guesser.guess(runs[0], max_n_guesses=5)
-            scores = [guess[1] for guess in guesses]
+            guesses = guesser.guess(runs[0], max_n_guesses=10)
 
-            for raw_guess, rr in zip(guesses[0], runs[0]):
-                gg, ss = raw_guess
-                guess = {"id": qq.qanta_id,
-                         "guess:%s" % gg: 1,
-                         "run_length": len(rr)/1000,
-                         "score": ss,
-                         "label": qq.page==gg,
-                         "category:%s" % qq.category: 1,
-                         "year:%s" % qq.year: 1}
+            for raw_guess, rr in zip(guesses, runs[0]):
+                gg, ss = raw_guess[0]
+                lf, lfn = links_feature(gg, rr)
+
+                guess = {
+                        "id": qq.qanta_id,
+                        "guess:%s" % gg: 1,
+                        "run_length": len(rr)/1000,
+                        "score": ss,
+                        "label": qq.page==gg,
+                        "category:%s" % qq.category: 1,
+                        "year:%s" % qq.year: 1,
+                        # NEW FEATURES
+                        "disambig": disambig_feature(gg, rr),
+                        "multiguess": [x[0] for x in raw_guess].count(gg),
+                        "scoreXrlength": (len(rr)/1000)*ss,
+                        "cat_geo": qq.category=='Geography',
+                        "links": lf,
+                        "num_links": lfn
+                        }
 
                 for ii in guess:
                     # Don't let it use features that would allow cheating
@@ -174,8 +240,8 @@ def write_guess_json(guesser, filename, fold, run_length=200, censor_features=["
                 outfile.write("\n")
     print("")
     return vocab
-        
-        
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -184,16 +250,16 @@ if __name__ == "__main__":
     parser.add_argument("--buzztrain", default="data/small.buzztrain.json", type=str)
     parser.add_argument("--buzzdev", default="data/small.buzzdev.json", type=str)
     parser.add_argument("--limit", default=-1, type=int)
-    parser.add_argument("--vocab", default="", type=str)
-    parser.add_argument("--buzztrain_predictions", default="", type=str)
-    parser.add_argument("--buzzdev_predictions", default="", type=str)
+    parser.add_argument("--vocab", default="small_guess.vocab", type=str)
+    parser.add_argument("--buzztrain_predictions", default="small_guess.buzztrain.jsonl", type=str)
+    parser.add_argument("--buzzdev_predictions", default="small_guess.buzztest.jsonl", type=str)
 
     flags = parser.parse_args()
 
     print("Loading %s" % flags.guesstrain)
     guesstrain = QantaDatabase(flags.guesstrain)
     guessdev = QantaDatabase(flags.guessdev)
-    
+
     tfidf_guesser = TfidfGuesser()
     tfidf_guesser.train(guesstrain, limit=flags.limit)
     tfidf_guesser.save() #sol
@@ -205,7 +271,6 @@ if __name__ == "__main__":
             if ii != jj:
                 print("%i\t%s\t%s\t" % (confusion[ii][jj], ii, jj))
 
-    
     if flags.buzztrain_predictions:
         print("Loading %s" % flags.buzztrain)
         buzztrain = QantaDatabase(flags.buzztrain)        
