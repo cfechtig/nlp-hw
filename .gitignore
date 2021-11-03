@@ -104,3 +104,7 @@ venv.bak/
 .mypy_cache/
 
 tfidf.pickle
+
+qanta.dev.json
+qanta.test.json
+qanta.train.json

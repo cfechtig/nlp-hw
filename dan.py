@@ -38,8 +38,8 @@ def load_data(filename, lim):
             questions = json.load(json_data)["questions"]
         for q in questions:
             q_text = nltk.word_tokenize(q['text'])
-            #label = q['category']
-            label = q['page']
+            label = q['category']
+            # label = q['page']
             if label:
                 data.append((q_text, label))
     return data
@@ -116,6 +116,11 @@ class QuestionDataset(Dataset):
         #### You should consider the out of vocab(OOV) cases
         #### question_text is already tokenized    
         ####Your code here
+        for i in range(len(ex)):
+            if ex[i] in word2ind.keys():
+                vec_text[i] = word2ind[ex[i]]
+            else:
+                vec_text[i] = word2ind[kUNK]
 
         return vec_text
 
@@ -151,7 +156,7 @@ def evaluate(data_loader, model, device):
     Keyword arguments:
     data_loader: pytorch build-in data loader output
     model: model to be evaluated
-    device: cpu of gpu
+    device: cpu or gpu
     """
 
     model.eval()
@@ -163,7 +168,8 @@ def evaluate(data_loader, model, device):
         labels = batch['labels']
 
         ####Your code here
-
+        with torch.no_grad():
+            logits = model(question_text, question_len)
 
         top_n, top_i = logits.topk(1)
         num_examples += question_text.size(0)
@@ -201,7 +207,7 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
 
         #### Your code here
         model.zero_grad()
-        out = model(question_text)
+        out = model(question_text, question_len)
         loss = criterion(out, labels)
         loss.backward()
         optimizer.step()
@@ -252,8 +258,6 @@ class DanModel(nn.Module):
         #### Your code here
         self.classifier = nn.Sequential(self.linear1, nn.ReLU(), nn.Dropout(nn_dropout), self.linear2)
         self._softmax = nn.Softmax()
-       
-
 
     def average(self, text_embeddings, text_len):
         """
@@ -268,10 +272,11 @@ class DanModel(nn.Module):
         # You'll want to finish this function.  You don't have to use it in
         # your forward function, but it's a good way to make sure the
         # dimensions match and to use the unit test to check your work.
+        sum = text_embeddings.sum(1)
+        average = torch.div(sum, text_len.view(text_embeddings.size(0), -1))
 
         return average
 
-        
     def forward(self, input_text, text_len, is_prob=False):
         """
         Model forward pass, returns the logits of the predictions.
@@ -282,10 +287,10 @@ class DanModel(nn.Module):
         is_prob: if True, output the softmax of last layer
         """
         
-        logits = torch.LongTensor([0.0] * self.n_classes)
+        logits = torch.LongTensor([0] * self.n_classes)
 
         # Complete the forward funtion.  First look up the word embeddings.
-        text_embed = self._word_embeddings(input_text)
+        text_embed = self.embeddings(input_text)
         # Then average them 
         text_embed = self.average(text_embed, text_len)
         # Before feeding them through the network

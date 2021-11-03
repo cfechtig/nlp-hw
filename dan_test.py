@@ -24,8 +24,6 @@ class TestSequenceFunctions(unittest.TestCase):
         nn.init.ones_(self.toy_dan_model.linear1.bias.data)
         nn.init.zeros_(self.toy_dan_model.linear2.bias.data)
 
-
-
     def test_forward_logits(self):
         logits = self.toy_dan_model(text1['text'], text1['len'])
         self.assertAlmostEqual(logits[0][0].item(), 0.2130, places=2)
