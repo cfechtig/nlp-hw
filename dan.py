@@ -9,6 +9,8 @@ import json
 import time
 import nltk
 
+from sklearn.metrics import confusion_matrix
+
 kUNK = '<unk>'
 kPAD = '<pad>'
 
@@ -110,12 +112,13 @@ class QuestionDataset(Dataset):
         e.g. ['text', 'test', 'is', 'fun'] -> [0, 2, 3, 4]
         """
 
-        vec_text = [0] * len(ex)
-
         #### modify the code to vectorize the question text
         #### You should consider the out of vocab(OOV) cases
         #### question_text is already tokenized    
         ####Your code here
+
+        vec_text = [0] * len(ex)
+
         for i in range(len(ex)):
             if ex[i] in word2ind.keys():
                 vec_text[i] = word2ind[ex[i]]
@@ -227,6 +230,47 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
                 accuracy = curr_accuracy
     return accuracy
 
+def glove_dict(glove_file):
+    words = []
+    idx = 0
+    word2idx = {}
+    vectors = []
+
+    with open(glove_file, 'rb') as f:
+        for l in f:
+            line = l.decode().split()
+            word = line[0]
+            words.append(word)
+            word2idx[word] = idx
+            idx += 1
+            vect = np.array(line[1:]).astype(float)
+            vectors.append(vect)
+    
+    glove = {w: vectors[word2idx[w]] for w in words}
+    return glove
+
+def glove_matrix(voc, glove):
+    matrix_len = len(voc)
+    weights_matrix = np.zeros((matrix_len, 50))
+    words_found = 0
+
+    for i, word in enumerate(voc):
+        try: 
+            weights_matrix[i] = glove[word]
+            words_found += 1
+        except KeyError:
+            weights_matrix[i] = np.random.normal(scale=0.6, size=(50, ))
+
+    return weights_matrix
+
+def create_emb_layer(weights_matrix, non_trainable=False):
+    num_embeddings, embedding_dim = weights_matrix.size()
+    emb_layer = nn.Embedding(num_embeddings, embedding_dim)
+    emb_layer.load_state_dict({'weight': weights_matrix})
+    if non_trainable:
+        emb_layer.weight.requires_grad = False
+
+    return emb_layer, num_embeddings, embedding_dim
 
 class DanModel(nn.Module):
     """High level model that handles intializing the underlying network
@@ -235,7 +279,7 @@ class DanModel(nn.Module):
 
     #### You don't need to change the parameters for the model
 
-    def __init__(self, n_classes, vocab_size, emb_dim=50, n_hidden_units=50, nn_dropout=.5):
+    def __init__(self, n_classes, vocab_size, weights_matrix=None, emb_dim=50, n_hidden_units=50, nn_dropout=.5):
         super(DanModel, self).__init__()
         self.n_classes = n_classes
         self.vocab_size = vocab_size
@@ -243,8 +287,10 @@ class DanModel(nn.Module):
         self.n_hidden_units = n_hidden_units
         self.nn_dropout = nn_dropout
         self.embeddings = nn.Embedding(self.vocab_size, self.emb_dim, padding_idx=0)
-        self.linear1 = nn.Linear(emb_dim, n_hidden_units)
-        self.linear2 = nn.Linear(n_hidden_units, n_classes)
+        if weights_matrix is not None:
+            self.embeddings.load_state_dict({'weight': torch.tensor(weights_matrix)})
+        self.linear1 = nn.Linear(self.emb_dim, self.n_hidden_units)
+        self.linear2 = nn.Linear(self.n_hidden_units, self.n_classes)
 
         # Create the actual prediction framework for the DAN classifier.
 
@@ -341,7 +387,13 @@ if __name__ == "__main__":
     print(num_classes)
 
     #get class to int mapping
-    class2ind, ind2class = class_labels(train_exs + dev_exs)  
+    class2ind, ind2class = class_labels(train_exs + dev_exs)
+
+    # create glove representations/mapping
+    glove = glove_dict('glove.6B.50d.txt')
+    weights_matrix = glove_matrix(voc, glove)
+    print("Weight matrix shape:")
+    print(weights_matrix.shape)
 
     if args.test:
         model = torch.load(args.load_model)
@@ -352,11 +404,31 @@ if __name__ == "__main__":
                                                sampler=test_sampler, num_workers=0,
                                                collate_fn=batchify)
         evaluate(test_loader, model, device)
+
+        y_true = []
+        y_pred = []
+        for idx, batch in enumerate(test_loader):
+            question_text = batch['text'].to(device)
+            question_len = batch['len']
+            labels = batch['labels']
+
+            with torch.no_grad():
+                logits = model(question_text, question_len)
+
+            top_n, top_i = logits.topk(1)
+            y_true += labels
+            y_pred += top_i.squeeze()
+        conf = confusion_matrix(y_true, y_pred)
+        print(class2ind)
+        print(np.sum(conf))
+        print(conf)
+
     else:
         if args.resume:
             model = torch.load(args.load_model)
         else:
             model = DanModel(num_classes, len(voc))
+            # model = DanModel(num_classes, len(voc), weights_matrix)
             model.to(device)
         print(model)
         #### Load batchifed dataset

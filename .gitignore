@@ -108,3 +108,5 @@ tfidf.pickle
 qanta.dev.json
 qanta.test.json
 qanta.train.json
+
+glove.6B.50d.txt
