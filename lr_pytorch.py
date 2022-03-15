@@ -126,7 +126,7 @@ if __name__ == "__main__":
     argparser.add_argument("--batch", help="Number of items in each batch",
                            type=int, default=1)
     argparser.add_argument("--learnrate", help="Learning rate for SGD",
-                           type=float, default=0.1)
+                           type=float, default=0.001)
 
     args = argparser.parse_args()
 
